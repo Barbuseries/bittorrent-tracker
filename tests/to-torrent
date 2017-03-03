@@ -1,0 +1,135 @@
+#!/bin/bash
+
+tracker="localhost"
+port=5555
+
+function errcho()
+{
+	echo >&2 "$@"
+}
+
+# NOTE: Usage: get-arg-if-present SHORT_OPT_NAME POSSIBLE_ARG.
+#       If the option has no short name, it's not taken into account.
+#       Return POSSIBLE_ARG if present and exit with code 0.
+#       Exit with code 1 otherwhise.
+function get-arg-if-present()
+{
+	local key="$_key"
+	local sopt="$1"
+	shift
+	local val="$@"
+	shift
+
+	if [[ -z "$val" ]] || [[ ! "$key" = "$sopt" && ! "$key" = --* ]]
+	then
+		[[ ! "$key" = --* ]] && key="${key::2}"
+		errcho "$_me: option '$key' requires an argument."
+		exit 1
+	fi
+
+	echo "$val"
+}
+
+_me="$(basename "$0")"
+
+_version_major="0"
+_version_minor="1"
+
+_version="$_version_major.$_version_minor"
+
+_license="Copyright © $(date +%Y) Barbu
+This work is free. You can redistribute it and/or modify it under the
+terms of the Do What The Fuck You Want To Public License, Version 2,
+as published by Sam Hocevar. See http://www.wtfpl.net/ for more details."
+
+_verbose_version="$_me $_version
+
+$_license"
+
+_usage="Usage: $_me [OPTIONS] FILE [FILE]...
+
+Convert FILE(s) to torrent file(s) in 'torrents/'.
+
+Options:
+      --help                  Show this (hopefully) helpful message.
+      --version               Show this program's version and exit.
+  -t, --tracker TRACKER       Tracker.
+                              (Default '$tracker')
+  -p, --port    PORT          Tracker's port.
+                              (Default '$port')"
+
+exec_command="echo"
+
+all_files=()
+
+_mult_short_opt_regexp='^-[^-].+'
+
+_key="$1"
+
+while [[ $# -gt 0 ]]
+do
+	case "$_key" in
+		--help)
+			echo "$_usage"
+			exit 0
+			;;
+		--version)
+			echo "$_verbose_version"
+			exit 0
+			;;
+		-t*|--tracker)
+			tracker="$(get-arg-if-present -t $2)" || exit 1
+			shift
+			;;
+		
+		-p*|--port)
+			port="$(get-arg-if-present -p $2)" || exit 1
+			shift
+			;;
+
+		-*|--*)
+			[[ ! "$_key" = --* ]] && _key="${_key::2}"
+			
+			errcho "$_me: invalid option '$_key'."
+			errcho "See --help for more information."
+			exit 1
+			;;
+		*)
+			if [ -d "$1" ]
+			then
+				for f in "${1%/}/"*; do
+					all_files+=("$f")
+				done
+			else
+				all_files+=("$1")
+			fi
+			;;
+	esac
+	
+	# NOTE: If multiple short options are passed at once.
+	#       Remove first option so whe can process the next ones.
+	if [[ "$_key" =~ $_mult_short_opt_regexp ]]
+	then
+		_key="${_key:2}"
+
+		# NOTE: Does not prepend '-' if it does not start with a
+		# letter for a prettier ouput.
+		[[ "$_key" = [a-zA-Z]* ]] && _key="-$_key"
+	else
+		shift
+		
+		_key="$1"
+	fi
+done
+
+if [ "${#all_files}" -eq 0 ]
+then
+	errcho "$_me: no file given." && exit 1
+fi
+
+for f in "${all_files}"; do
+	short_name="$(basename $f)"
+	no_ext="${short_name%.*}"
+	
+    transmission-create -o torrents/"$no_ext" -t "http://$tracker:$port" "$f"
+done
