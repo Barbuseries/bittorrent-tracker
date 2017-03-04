@@ -1,6 +1,6 @@
 #!/bin/bash
 
-tracker="localhost"
+tracker="0.0.0.0"
 port=5555
 
 function errcho()
@@ -131,5 +131,5 @@ for f in "${all_files}"; do
 	short_name="$(basename $f)"
 	no_ext="${short_name%.*}"
 	
-    transmission-create -o torrents/"$no_ext" -t "http://$tracker:$port" "$f"
+    transmission-create -o torrents/"$no_ext.torrent" -t "http://$tracker:$port" "$f"
 done
