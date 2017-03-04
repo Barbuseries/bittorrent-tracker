@@ -27,6 +27,10 @@
 *.i*86
 *.x86_64
 *.hex
+code/tracker1
+code/tracker2
+code/tracker3
+code/tracker4
 
 # Debug files
 *.dSYM/
