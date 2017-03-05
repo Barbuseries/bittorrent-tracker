@@ -38,13 +38,14 @@ REQUEST_HANDLER(handle_web_request)
 
         // No peers found, ask again in 2 minutes.
 		response_write_pos = http_content(response_write_pos, &buffer_size,
-										  "<head>"				\
+										  "<head>"						\
 										  "<title>Hello, world</title>"	\
-										  "</head>"\
-										  "<body>"\
-										  "<h1>hello</h1>"\
-										  "<p>world</p>"\
-										  "</body>\r\n", -1);
+										  "</head>"						\
+										  "<body>"						\
+										  "<h1>hello</h1>"				\
+										  "<p>world</p>"				\
+										  "</body>\r\n",
+										  -1);
 
 		write(fd, http_response_buffer, response_write_pos - http_response_buffer);
 	}

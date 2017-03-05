@@ -16,22 +16,13 @@ char *
 http_header(char *buffer, int *buffer_size_left, char *code,
 			char *content_type)
 {
-	int total_num_written = 0;
-	int size = *buffer_size_left;
-	
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "HTTP/1.1 %s\r\n", code);
+	int total_num_written = snprintf(buffer, *buffer_size_left,
+									 "HTTP/1.1 %s\r\n"					\
+									 "Server: %s\r\n"					\
+									 "Content-Type: %s\r\n",
+									 code, SERVER_IP, content_type);
 				
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "Server: %s\r\n", SERVER_IP);
-				
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "Content-Type: %s\r\n", content_type);
-
-	*buffer_size_left = size;
+	*buffer_size_left -= total_num_written;
 
 	return buffer + total_num_written;
 }
@@ -55,28 +46,20 @@ char*
 http_content(char *buffer, int *buffer_size_left,
 			 char *content, int content_size)
 {
-	int total_num_written = 0;
-	int size = *buffer_size_left;
-
+	/* TODO: Reduce content-size if it exceeds *buffer_size_left +
+	 *       http overhead. */
 	if (content_size == -1) {
 		content_size = strlen(content);
 	}
 
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "Content-Length: %d\r\n", content_size);
-	
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "\r\n");
-	
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  content);
-	
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "\r\n");
+	int total_num_written = snprintf(buffer, *buffer_size_left,
+									 "Content-Length: %d\r\n"	\
+									 "\r\n"						\
+									 "%s"						\
+									 "\r\n" ,
+									 content_size, content);
+
+	*buffer_size_left -= total_num_written;
 
 	return buffer + total_num_written;
 }
