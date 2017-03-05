@@ -41,8 +41,6 @@ typedef struct Peer {
 	int      is_seeder;
 	// unsigned long timestamp_last_request;
 	// int torrent_index; ?
-
-	int      fd;	/* Tracker file descriptor associated with peer */
 } Peer;
 
 typedef struct Torrent {

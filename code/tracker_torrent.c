@@ -59,7 +59,7 @@ get_torrent(TrackerInfo *tracker, char *hash)
 }
 
 static void *
-send_peer_list(Torrent *torrent, Peer *peer) {
+send_peer_list(Torrent *torrent, Peer *peer, int fd) {
 	/* NOTE: A 'no peer' response takes 105 + server_ip_length chars.*/
 	char http_response_buffer[255];
 	int buffer_size = sizeof(http_response_buffer);
@@ -69,11 +69,11 @@ send_peer_list(Torrent *torrent, Peer *peer) {
 	response_write_pos = http_header(response_write_pos, &buffer_size,
 									 "200 Ok", "text/plain");
 
-	// No peers found, ask again in 10 seconds.
+	// No peers found, ask again in 120 seconds.
 	response_write_pos = http_content(response_write_pos, &buffer_size,
-									  "d8:intervali10e5:peerslee\r\n", -1);
+									  "d8:intervali120e5:peerslee\r\n", -1);
 
-	write(peer->fd, http_response_buffer, response_write_pos - http_response_buffer);
+	write(fd, http_response_buffer, response_write_pos - http_response_buffer);
 }
 
 static void *
@@ -147,35 +147,28 @@ parse_peer_request(int fd, PeerEventType *peer_event_type,
 					char *next_key = strchr(current_val, '&');
 					int len_val = 0;
 					
-					if (next_key)
-					{
+					if (next_key) {
 						++next_key;
 						len_val = (next_key - current_val) - 1;
 					}
 					else
-					{
 						len_val = (strchr(current_val, ' ') - current_val);
-					}
 
-					if (same_string("info_hash", left_to_read, len_key))
-					{
+					if (same_string("info_hash", left_to_read, len_key)) {
 						url_decode(torrent_hash, current_val, len_val);
 					}
-					else if (same_string("peer_id", left_to_read, len_key))
-					{
+					else if (same_string("peer_id", left_to_read, len_key)) {
 						size_t actual_len = MIN(sizeof(((Peer *) 0)->id), len_val + 1);
 						snprintf(peer_info->id, actual_len, "%s", current_val);
 					}
-					else if (same_string("port", left_to_read, len_key))
-					{
+					else if (same_string("port", left_to_read, len_key)) {
 						char port_buffer[6];
 						size_t actual_len = MIN(sizeof(port_buffer), len_val + 1);
 						snprintf(port_buffer, actual_len, "%s", current_val);
 
 						peer_info->port = atoi(port_buffer);
 					}
-					else if (same_string("left", left_to_read, len_key))
-					{
+					else if (same_string("left", left_to_read, len_key)) {
 						if (len_val) {
 							if ((current_val[0]) == '0') {
 								*is_seeder = 1;
@@ -269,6 +262,7 @@ REQUEST_HANDLER(handle_torrent_request)
 			printf("Client stopped following a torrent.\n");
 
 			/* TODO: Update torrent peer list. */
+			close(fd);
 			
 			break;
 		case PEER_EVENT_COMPLETED:
@@ -279,8 +273,6 @@ REQUEST_HANDLER(handle_torrent_request)
 	}
 
 	if (peer_event_type != PEER_EVENT_STOPPED) {
-		Peer peer = { .fd = fd };
-		
-		send_peer_list(torrent, &peer);
+		send_peer_list(torrent, &peer_info, fd);
 	}
 }
