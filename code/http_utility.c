@@ -56,7 +56,7 @@ http_content(char *buffer, int *buffer_size_left,
 									 "Content-Length: %d\r\n"	\
 									 "\r\n"						\
 									 "%s"						\
-									 "\r\n" ,
+									 "\r\n",
 									 content_size, content);
 
 	*buffer_size_left -= total_num_written;

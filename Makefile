@@ -3,7 +3,7 @@ SRC = $(wildcard code/*.c)
 OBJS = $(patsubst code/%.c, build/%.o, $(filter-out $(wildcard code/tracker*), $(SRC)))
 OBJS += build/tracker_common.o
 
-TARGET = tracker1 tracker3 tracker4
+TARGET = tracker1 tracker2 tracker3 tracker4
 
 TARGET_FULL_PATH = $(patsubst %, dist/%, $(TARGET))
 all: $(TARGET_FULL_PATH)
