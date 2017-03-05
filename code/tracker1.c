@@ -1,100 +1,10 @@
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <sys/epoll.h>
+#include "tracker_common.h"
 
-#include "utility.h"
-#include "inet_socket.h"
-#include "read_line.h"
+/* TODO: Remove use of epoll. */
 
-#define MAX_PEER_COUNT 10
-#define MAX_EVENTS 10
-#define SERVER_IP "0.0.0.0"
-
-/*
-  Write a basic HTTP header in buffer (up until Content-Length):
-  
-  'HTTP/1.1 <code>
-   Server: <SERVER_IP>
-   Content-Type: <content_type>'
-
-   Return where it stopped writing.
-   
-   buffer_size_left is modified to reflect the new space left in
-   buffer.
- */
-static char *
-http_header(char *buffer, int *buffer_size_left, char *code,
-			char *content_type)
-{
-	int total_num_written = 0;
-	int size = *buffer_size_left;
-	
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "HTTP/1.1 %s\r\n", code);
-				
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "Server: %s\r\n", SERVER_IP);
-				
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "Content-Type: %s\r\n", content_type);
-
-	*buffer_size_left = size;
-
-	return buffer + total_num_written;
-}
-
-/*
-  Write content in buffer (in HTTP format).
-  
-  'Content_length: <content_size>
-
-  <content>
-  '
-  
-  If content_size is -1, set content_size to strlen(content).
-  
-  Return where it stopped writing.
-   
-  buffer_size_left is modified to reflect the new space left in
-  buffer.
- */
-static char*
-http_content(char *buffer, int *buffer_size_left,
-			 char *content, int content_size) {
-	int total_num_written = 0;
-	int size = *buffer_size_left;
-
-	if (content_size == -1) {
-		content_size = strlen(content);
-	}
-
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "Content-Length: %d\r\n", content_size);
-	
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "\r\n");
-	
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  content);
-	
-	total_num_written += snprintf(buffer + total_num_written,
-								  size - total_num_written,
-								  "\r\n");
-
-	return buffer + total_num_written;
-}
-
-static void
-handle_torrent_request(int fd)
+/* Always answer by sending an empty peer list. */
+static
+REQUEST_HANDLER(handle_request)
 {
 	char buffer[255];
 	int read_at_least_one = 0;
@@ -157,7 +67,7 @@ handle_torrent_request(int fd)
 int
 main()
 {
-    int listen_fd = inetListen("5555", 5, NULL);
+    int listen_fd = inetListen(TO_STRING(TORRENT_PORT), 5, NULL);
     if (listen_fd == -1)
         errExit("inetListen");
 
@@ -182,6 +92,8 @@ main()
     // the event list used with epoll_wait()
     struct epoll_event evlist[MAX_EVENTS];
 
+	TrackerInfo tracker_info = {};
+
     char x = 0;
     while (x != 'q') {
         int nb_fd_ready = epoll_wait(epfd, evlist, MAX_EVENTS, -1);
@@ -201,23 +113,10 @@ main()
                 if ((read(STDIN_FILENO, &x, 1) == 1) && (x == 'q'))
                     break;
             } else if (fd == listen_fd) {
-                int client_fd = accept(listen_fd, NULL, NULL);
-
-                // The accept system call returns an error
-                // this error should be handled more gracefully
-                if (client_fd == -1 && errno != EINTR)
-                    errExit("accept");
-
-                // There is a new connection
-                if (client_fd != -1) {
-					ev.data.fd = client_fd;
-					if (epoll_ctl(epfd, EPOLL_CTL_ADD, client_fd, &ev) == -1)
-						close(client_fd);
-					else
-						printf("Client connection.\n");
-                }
+				if (accept_client(listen_fd, epfd, &ev) != -1)
+					printf("Client connection.\n");
             } else { // a client fd is ready
-				handle_torrent_request(fd);
+				handle_request(&tracker_info, fd);
             }
         }
     }
