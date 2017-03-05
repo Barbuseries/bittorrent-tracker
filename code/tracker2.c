@@ -1,4 +1,4 @@
-#include "tracker_common.h"
+#include "tracker_torrent.h"
 
 int
 main()
@@ -52,6 +52,7 @@ main()
                 if (accept_client(listen_fd, epfd, &ev) != -1)
 					printf("Client connection.\n");
             } else { // a client fd is ready
+				printf("FD: %d\n", fd);
 				handle_torrent_request(&tracker_info, fd);
             }
         }

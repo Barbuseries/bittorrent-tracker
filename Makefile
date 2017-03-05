@@ -18,10 +18,17 @@ build/%.o: code/%.c
 	@mkdir -p build
 	$(CC) -o $@ -c $<
 
+build/tracker_torrent.o: build/tracker_common.o
+build/tracker_web.o: build/tracker_common.o
+
 dist/%: build/%.o ${OBJS}
 	@mkdir -p dist
 	$(CC) -o $@ $^
 	@echo -e '\033[1;31mDone '$@'\033[0m...\n'
+
+dist/tracker2: build/tracker_torrent.o
+dist/tracker3: build/tracker_web.o
+dist/tracker4: build/tracker_torrent.o build/tracker_web.o
 
 clean:
 	@rm -f build/*

@@ -16,32 +16,42 @@
 #define STRINGIFY(x)    #x
 #define TO_STRING(x)	STRINGIFY(x)
 
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 #define MAX_PEER_COUNT 10
 #define MAX_EVENTS     10
 
 #define TORRENT_PORT 5555
 #define WEB_PORT     8080
 
+typedef enum PeerEventType {
+	PEER_EVENT_NONE,
+	PEER_EVENT_STARTED,
+	PEER_EVENT_STOPPED,
+	PEER_EVENT_COMPLETED,
+} PeerEventType;
+
 typedef struct Peer {
-	char    id[42];				/* Peer's id (as given in request) */
-	char    ip[255];			/* Peer's ip (as given in request) */
-	int16_t port;				/* Peer's listening port (as given in request) */
+	char     ip[255];/* Peer's ip (as given in request, or as infered
+					  * when accepting peer) */
+	char     id[20]; /* Peer's id (as given in request) */
+	uint16_t port;	 /* Peer's listening port (as given in request) */
 	
-    int     fd;					/* Tracker file descriptor associated with peer */
+	int      is_seeder;
 	// unsigned long timestamp_last_request;
 	// int torrent_index; ?
+
+	int      fd;	/* Tracker file descriptor associated with peer */
 } Peer;
 
 typedef struct Torrent {
-	Peer all_peers[MAX_PEER_COUNT]; /* All peers following this torrent */
+	Peer all_peers[MAX_PEER_COUNT];
+	char hash[40];
 	
-    int *all_seeders[MAX_PEER_COUNT]; /* Index of peers seeding (finished downloading)  */
-	int *all_leechers[MAX_PEER_COUNT]; /* Index of peers leeching (downloading) */
-
-	int  seeder_count;
-	int  leecher_count;
-
-	// char hash[255]; /* TODO: Find max hash size. */
+	int  peer_count;
+	/* char peer_list[SOME_LEN] */
+	/* char compact_peer_list[SOME_SMALLER_LEN] */
 } Torrent;
 
 typedef struct TrackerInfo {
@@ -52,9 +62,6 @@ typedef struct TrackerInfo {
 
 #define REQUEST_HANDLER(name) void name(TrackerInfo *tracker_info, int fd)
 typedef REQUEST_HANDLER(request_handler);
-
-REQUEST_HANDLER(handle_web_request);
-REQUEST_HANDLER(handle_torrent_request);
 
 int accept_client(int listen_fd, int epfd, struct epoll_event *ev);
 

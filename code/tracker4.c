@@ -1,6 +1,7 @@
 #include <netinet/in.h>
 
-#include "tracker_common.h"
+#include "tracker_torrent.h"
+#include "tracker_web.h"
 
 int
 main()
