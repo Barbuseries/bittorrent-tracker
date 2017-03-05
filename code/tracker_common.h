@@ -19,6 +19,21 @@
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+#if DEBUG
+#define ASSERT(expression)	do										\
+	{																\
+		if(!(expression))											\
+		{															\
+			fprintf(stderr, "ASSERT FAILED : '%s', %s line %d.\n",	\
+					#expression, __FILE__, __LINE__);				\
+			*(int *)NULL = 0;										\
+		}															\
+	}while (0)
+	
+#else
+#define ASSERT(expression)
+#endif
+
 #define MAX_PEER_COUNT 10
 #define MAX_EVENTS     10
 
@@ -32,6 +47,8 @@ typedef enum PeerEventType {
 	PEER_EVENT_COMPLETED,
 } PeerEventType;
 
+/* NOTE: A peer exists if its id is not empty (just check the first
+ *       char). */
 typedef struct Peer {
 	char     ip[255];/* Peer's ip (as given in request, or as infered
 					  * when accepting peer) */
@@ -43,11 +60,15 @@ typedef struct Peer {
 	// int torrent_index; ?
 } Peer;
 
+/* NOTE: A torrent exists if its hash is not empty (just check the
+ *       first char). */
 typedef struct Torrent {
 	Peer all_peers[MAX_PEER_COUNT];
 	char hash[40];
 	
 	int  peer_count;
+	int  seeder_count;
+	int  leecher_count;
 	/* char peer_list[SOME_LEN] */
 	/* char compact_peer_list[SOME_SMALLER_LEN] */
 } Torrent;

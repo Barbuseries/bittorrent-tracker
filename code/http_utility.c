@@ -63,3 +63,19 @@ http_content(char *buffer, int *buffer_size_left,
 
 	return buffer + total_num_written;
 }
+
+/*
+  Only send a response code (HTTP header with no content).
+ */
+void
+http_send_code(int fd, char *error_code) {
+	char http_response_buffer[255];
+			
+	char *response_write_pos = http_response_buffer;
+	int response_len_left = sizeof(http_response_buffer);
+			
+	response_write_pos = http_header(response_write_pos, &response_len_left, error_code, "text/plain");
+	response_write_pos = http_content(response_write_pos, &response_len_left, "", 0);
+
+	write(fd, http_response_buffer, response_write_pos - http_response_buffer);
+}

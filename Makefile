@@ -1,3 +1,5 @@
+DEFINES = -DDEBUG=1 -g
+
 SRC = $(wildcard code/*.c)
 
 OBJS = $(patsubst code/%.c, build/%.o, $(filter-out $(wildcard code/tracker*), $(SRC)))
@@ -12,11 +14,11 @@ all: $(TARGET_FULL_PATH)
 # writing two rules...
 build/%.o: code/%.c code/%.h
 	@mkdir -p build
-	$(CC) -o $@ -c $<
+	$(CC) -o $@ -c $< $(DEFINES)
 
 build/%.o: code/%.c
 	@mkdir -p build
-	$(CC) -o $@ -c $<
+	$(CC) -o $@ -c $< $(DEFINES)
 
 build/tracker_torrent.o: build/tracker_common.o
 build/tracker_web.o: build/tracker_common.o

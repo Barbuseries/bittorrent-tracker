@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #define SERVER_IP "0.0.0.0"
 
@@ -11,5 +12,7 @@ char *http_header(char *buffer, int *buffer_size_left, char *code,
 
 char *http_content(char *buffer, int *buffer_size_left,
 				   char *content, int content_size);
+
+void http_send_code(int fd, char *error_code);
 
 #endif /* HTTP_UTILITY_H */

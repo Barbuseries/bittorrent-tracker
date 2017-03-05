@@ -34,9 +34,10 @@ add_torrent(TrackerInfo *tracker, char *hash)
 		return NULL;
 
 	Torrent *new_torrent = tracker->all_torrents + tracker->torrent_count++;
+	/* TODO: Setting peer count to 0 and the first char of each peer id is sufficient. */
 	memset(new_torrent, 0, sizeof(Torrent));
-	
-	snprintf(new_torrent->hash, sizeof(((Torrent *) 0)->hash), "%s", hash);
+
+	memcpy(new_torrent->hash, hash, sizeof(((Torrent *) 0)->hash));
 
 	return new_torrent;
 }
@@ -44,6 +45,9 @@ add_torrent(TrackerInfo *tracker, char *hash)
 static Torrent *
 get_torrent(TrackerInfo *tracker, char *hash)
 {
+	if (!(tracker->torrent_count > 0))
+		return NULL;
+	
 	for (int i = 0; i < ARRAY_SIZE(tracker->all_torrents); ++i)
 	{
 		Torrent *torrent = tracker->all_torrents + i;
@@ -58,8 +62,102 @@ get_torrent(TrackerInfo *tracker, char *hash)
 	return NULL;
 }
 
+static Peer *
+get_peer(Torrent *torrent, char *id) {
+	if (!(torrent->peer_count > 0))
+		return NULL;
+	
+	for (int i = 0; i < ARRAY_SIZE(torrent->all_peers); ++i) {
+		Peer *peer = torrent->all_peers + i;
+
+		if (strncmp(peer->id, id, sizeof(((Peer *) 0)->id)) == 0) {
+			return peer;
+		}
+	}
+
+	return NULL;
+}
+
+static Peer *
+add_peer(Torrent *torrent, Peer *new_peer) {
+	if (!(torrent->peer_count < ARRAY_SIZE(torrent->all_peers))) {
+		return NULL;
+	}
+
+	ASSERT(get_peer(torrent, new_peer->id) == NULL);
+
+	Peer *peer = torrent->all_peers;
+
+	while (peer->id[0]) {
+		ASSERT((peer - torrent->all_peers) < ARRAY_SIZE(torrent->all_peers));
+		
+		++peer;
+	}
+
+	memcpy(peer, new_peer, sizeof(Peer));
+
+	++torrent->peer_count;
+
+	(peer->is_seeder) ? ++torrent->seeder_count : ++torrent->leecher_count;
+
+	/* TODO: Update peer list. (If we decide to precompute it) */
+
+	return peer;
+}
+
+static int
+remove_peer(TrackerInfo *tracker, Torrent *torrent, Peer *old_peer) {
+	if (!(torrent->peer_count > 0)) {
+		return 1;
+	}
+
+	Peer *peer = get_peer(torrent, old_peer->id);
+
+	if (!peer)
+		return 1;
+	
+	peer->id[0] = '\0';
+	--torrent->peer_count;
+			
+	if (!torrent->peer_count) {
+		torrent->hash[0] = 0;
+		--tracker->torrent_count;
+	}
+	else {
+		(peer->is_seeder) ? --torrent->seeder_count : --torrent->leecher_count;
+		/* TODO: Update peer list. (If we decide to precompute it) */
+	}
+	
+	return 0;
+}
+
+static int
+update_peer_info(Torrent *torrent, Peer *new_peer_info) {
+	Peer *peer = get_peer(torrent, new_peer_info->id);
+
+	if (!peer)
+		return 1;
+
+	if (new_peer_info->is_seeder != peer->is_seeder) {
+		if (new_peer_info->is_seeder) {
+			--torrent->leecher_count;
+			++torrent->seeder_count;
+		}
+		else {
+			--torrent->seeder_count;
+			++torrent->leecher_count;
+		}
+	}
+	
+	memcpy(peer, new_peer_info, sizeof(Peer));
+
+	/* TODO: Update peer list. (If we decide to precompute it) */
+
+	return 0;
+}
+
 static void *
-send_peer_list(Torrent *torrent, Peer *peer, int fd) {
+send_peer_list(int fd, Torrent *torrent, Peer *peer) {
 	/* NOTE: A 'no peer' response takes 105 + server_ip_length chars.*/
 	char http_response_buffer[255];
 	int buffer_size = sizeof(http_response_buffer);
@@ -69,15 +167,15 @@ send_peer_list(Torrent *torrent, Peer *peer, int fd) {
 	response_write_pos = http_header(response_write_pos, &buffer_size,
 									 "200 Ok", "text/plain");
 
-	// No peers found, ask again in 120 seconds.
+	// No peers found, ask again in 20 seconds.
 	response_write_pos = http_content(response_write_pos, &buffer_size,
-									  "d8:intervali120e5:peerslee\r\n", -1);
+									  "d8:intervali20e5:peerslee\r\n", -1);
 
 	write(fd, http_response_buffer, response_write_pos - http_response_buffer);
 }
 
 static void *
-send_peer_failure(int fd, char *reason) {
+send_peer_failure(int fd, char *key, char *value) {
 	char http_response_buffer[512];
 	int buffer_size = sizeof(http_response_buffer);
 		
@@ -87,13 +185,23 @@ send_peer_failure(int fd, char *reason) {
 									 "200 OK", "text/plain");
 
 	char buffer[255];
-	int num_written = snprintf(buffer, sizeof(buffer), "d14:failure reason%d:%s.e\r\n",
-							   strlen(reason), reason);
+	int num_written = snprintf(buffer, sizeof(buffer), "d%d:%s%d:%s.e\r\n",
+							   strlen(key), key, strlen(value), value);
 	
 	response_write_pos = http_content(response_write_pos, &buffer_size,
 									  buffer, num_written);
 
 	write(fd, http_response_buffer, response_write_pos - http_response_buffer);
+}
+
+static inline void *
+send_peer_failure_reason(int fd, char *reason) {
+	return send_peer_failure(fd, "failure reason", reason);
+}
+
+static inline void *
+send_peer_failure_code(int fd, char *code) {
+	return send_peer_failure(fd, "failure code", code);
 }
 
 static int
@@ -211,34 +319,41 @@ REQUEST_HANDLER(handle_torrent_request)
 	
 	printf("Client tracker request.\n");
 
-	Torrent *torrent = get_torrent(tracker_info, hash_buffer);
-	Peer *peer = NULL;
-
 	if (!hash_buffer[0]) {
-		/* TODO: Send info_hash missing (101) */
+		send_peer_failure_code(fd, "101");
+		return;
 	}
 
 	if (!peer_info.id[0]) {
-		/* TODO: Send peer_id missing (102) */
+		send_peer_failure_code(fd, "102");
+		return;
 	}
 
 	if (!peer_info.port) {
-		/* TODO: Send port missing (103) */
+		send_peer_failure_code(fd, "103");
+		return;
 	}
+
+	Torrent *torrent = get_torrent(tracker_info, hash_buffer);
 
 	if ((peer_event_type != PEER_EVENT_STARTED) &&
 		(torrent == NULL)) {
-		/* TODO: Send info_hash not found (200) */
+		send_peer_failure_code(fd, "200");
+		return;
 	}
 
+#if 1
 	printf("torrent_hash: %.*s\n", 40, hash_buffer);
 	printf("peer_id: %.*s\n", 20, peer_info.id);
 	printf("peer_port: %hu\n", peer_info.port);
 	printf("peer_is_seeder: %d\n", is_seeder);
+#endif
 
 	switch (peer_event_type) {
 		case PEER_EVENT_NONE:
 			printf("Client eventless request.\n");
+
+			/* update_peer_info(torrent, &peer_info); */
 			break;
 		case PEER_EVENT_STARTED:
 			printf("Client started following a torrent.\n");
@@ -247,32 +362,51 @@ REQUEST_HANDLER(handle_torrent_request)
 				torrent = add_torrent(tracker_info, hash_buffer);
 
 			if (torrent == NULL) {
-				send_peer_failure(fd, "Torrent count exceeded for this tracker");
+				send_peer_failure_reason(fd, "Torrent count exceeded for this tracker");
 				return;
 			}
 
-			/* TODO: Update torrent peer list. */
-			
-			if (peer == NULL) {
-				/* send_peer_failure(fd, "Peer count exceeded for this torrent"); */
-				/* return; */
+			if (add_peer(torrent, &peer_info) == NULL) {
+				send_peer_failure_reason(fd, "Peer count exceeded for this torrent");
 			}
+
 			break;
 		case PEER_EVENT_STOPPED:
 			printf("Client stopped following a torrent.\n");
 
-			/* TODO: Update torrent peer list. */
+			if (remove_peer(tracker_info, torrent, &peer_info) != 0) {
+				printf("Unknown peer removed...\n");
+			}
+
+			/* It seems the peer repeats (once) the 'stopped' event if
+			 * it's not explicitly acknowledged by the tracker. */
+			http_send_code(fd, "200 OK");
+			
 			close(fd);
 			
 			break;
 		case PEER_EVENT_COMPLETED:
 			printf("Client completed a torrent.\n");
 
-			/* TODO: Update torrent peer list. */
+			/* update_peer_info(torrent, &peer_info); */
 			break;
 	}
 
 	if (peer_event_type != PEER_EVENT_STOPPED) {
-		send_peer_list(torrent, &peer_info, fd);
+		send_peer_list(fd, torrent, &peer_info);
 	}
+
+#if 1
+	printf("Torrent count: %d\n", tracker_info->torrent_count);
+
+	for (int i = 0; i < ARRAY_SIZE(tracker_info->all_torrents); ++i)
+	{
+		Torrent *t = tracker_info->all_torrents + i;
+
+		if (t->hash[0])
+			printf("  Torrent id: %d\n"			\
+				   "    Peer count: %d\n",
+				   i, t->peer_count);
+	}
+#endif
 }
