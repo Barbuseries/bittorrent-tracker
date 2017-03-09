@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define SERVER_IP "0.0.0.0"
+#define SERVER_IP "127.0.0.1"
 
 char *http_header(char *buffer, int *buffer_size_left, char *code,
 				  char *content_type);

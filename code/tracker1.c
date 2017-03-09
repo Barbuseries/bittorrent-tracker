@@ -116,7 +116,7 @@ main()
 				if (accept_client(listen_fd, epfd, &ev) != -1)
 					printf("Client connection.\n");
             } else { // a client fd is ready
-				handle_request(&tracker_info, fd);
+				handle_request(fd, &tracker_info, NULL);
             }
         }
     }

@@ -72,13 +72,13 @@ main()
 					perror("getsockname");
 				else {
 					int client_port = ntohs(sin.sin_port);
-					
+
 					switch (client_port) {
 						case TORRENT_PORT:
-							handle_torrent_request(&tracker_info, fd);
+							handle_torrent_request(fd, &tracker_info, &sin.sin_addr);
 							break;
 						case WEB_PORT:
-							handle_web_request(&tracker_info, fd);
+							handle_web_request(fd, &tracker_info, &sin.sin_addr);
 							break;
 						default:
 							perror("invalid port");

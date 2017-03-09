@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/epoll.h>
+#include <netinet/in.h>
 
 #include "utility.h"
 #include "inet_socket.h"
@@ -40,6 +41,9 @@
 #define TORRENT_PORT 5555
 #define WEB_PORT     8080
 
+#define PEER_BENCODE_LEN         (27 + 263 + 12 + 2)
+#define PEER_COMPACT_BENCODE_LEN (6)
+
 typedef enum PeerEventType {
 	PEER_EVENT_NONE,
 	PEER_EVENT_STARTED,
@@ -50,27 +54,25 @@ typedef enum PeerEventType {
 /* NOTE: A peer exists if its id is not empty (just check the first
  *       char). */
 typedef struct Peer {
-	char     ip[255];/* Peer's ip (as given in request, or as infered
-					  * when accepting peer) */
 	char     id[20]; /* Peer's id (as given in request) */
-	uint16_t port;	 /* Peer's listening port (as given in request) */
+	int16_t  port;	 /* Peer's listening port (as given in request) */
+	struct in_addr  addr_in;	 /* Peer's ip in network-byte order (as given in
+					  * request, or as infered when accepting peer) */
 	
 	int      is_seeder;
 	// unsigned long timestamp_last_request;
-	// int torrent_index; ?
 } Peer;
 
 /* NOTE: A torrent exists if its hash is not empty (just check the
  *       first char). */
 typedef struct Torrent {
 	Peer all_peers[MAX_PEER_COUNT];
+	
 	char hash[40];
 	
 	int  peer_count;
 	int  seeder_count;
 	int  leecher_count;
-	/* char peer_list[SOME_LEN] */
-	/* char compact_peer_list[SOME_SMALLER_LEN] */
 } Torrent;
 
 typedef struct TrackerInfo {
@@ -79,7 +81,7 @@ typedef struct TrackerInfo {
 	int     torrent_count;
 } TrackerInfo;
 
-#define REQUEST_HANDLER(name) void name(TrackerInfo *tracker_info, int fd)
+#define REQUEST_HANDLER(name) void name(int fd, TrackerInfo *tracker_info, struct in_addr *addr_in)
 typedef REQUEST_HANDLER(request_handler);
 
 int accept_client(int listen_fd, int epfd, struct epoll_event *ev);

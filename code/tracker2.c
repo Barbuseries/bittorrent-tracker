@@ -3,7 +3,7 @@
 int
 main()
 {
-    int listen_fd = inetListen(TO_STRING(TORRENT_PORT), 5, NULL);
+    int listen_fd = inetListen(TO_STRING(TORRENT_PORT), MAX_PEER_COUNT + 2, NULL);
     if (listen_fd == -1)
         errExit("inetListen");
 
@@ -53,7 +53,13 @@ main()
 					printf("Client connection.\n");
             } else { // a client fd is ready
 				printf("FD: %d\n", fd);
-				handle_torrent_request(&tracker_info, fd);
+				struct sockaddr_in sin;
+				socklen_t len = sizeof(sin);
+				
+				if (getsockname(fd, (struct sockaddr *)&sin, &len) == -1)
+					perror("getsockname");
+				else
+					handle_torrent_request(fd, &tracker_info, &sin.sin_addr);
             }
         }
     }
