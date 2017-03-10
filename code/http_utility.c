@@ -60,7 +60,6 @@ http_content(char *buffer, int *buffer_size_left,
 									 content_size, content);
 
 	*buffer_size_left -= total_num_written;
-
 	return buffer + total_num_written;
 }
 
@@ -75,7 +74,9 @@ http_send_code(int fd, char *error_code) {
 	int response_len_left = sizeof(http_response_buffer);
 			
 	response_write_pos = http_header(response_write_pos, &response_len_left, error_code, "text/plain");
-	response_write_pos = http_content(response_write_pos, &response_len_left, "", 0);
+	response_write_pos = http_content(response_write_pos, &response_len_left, "", -1);
+
+        printf("%s\n", http_response_buffer);
 
 	write(fd, http_response_buffer, response_write_pos - http_response_buffer);
 }

@@ -2,8 +2,6 @@
 #define TRACKER_TORRENT_H
 
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
 #include "tracker_common.h"
 

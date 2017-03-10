@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <sys/epoll.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+
 
 #include "utility.h"
 #include "inet_socket.h"
