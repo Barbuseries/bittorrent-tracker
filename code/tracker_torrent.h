@@ -5,7 +5,8 @@
 
 #include "tracker_common.h"
 
-
+/* Modify tracker information upon peer request.
+   Also send peer list if asked to. */
 REQUEST_HANDLER(handle_torrent_request);
 
 #endif

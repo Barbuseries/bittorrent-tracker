@@ -7,7 +7,6 @@ accept_client(int listen_fd, int epfd, struct epoll_event *ev)
 
 	// The accept system call returns an error
 	// this error should be handled more gracefully
-	// /* TODO:  Handle this error more gracefully! */
 	if (client_fd == -1 && errno != EINTR) {
 		errExit("accept");
 		return -1;
@@ -24,4 +23,9 @@ accept_client(int listen_fd, int epfd, struct epoll_event *ev)
 	}
 
 	return client_fd;
+}
+
+inline int
+get_peer_count(Torrent *torrent) {
+	return torrent->seeder_count + torrent->leecher_count;
 }

@@ -1,14 +1,18 @@
 #include "tracker_torrent.h"
+#include "tracker_web.h"
 
 int
 main()
 {
-    int listen_fd = inetListen(TO_STRING(TORRENT_PORT), MAX_PEER_COUNT + 2, NULL);
+    int listen_fd = inetListen(TO_STRING(TORRENT_PORT),
+							   MAX_PEER_PER_TORRENT_COUNT * MAX_TORRENT_COUNT,
+							   NULL);
     if (listen_fd == -1)
         errExit("inetListen");
 
-    // Initialize the epoll instance 
-    int epfd = epoll_create(MAX_PEER_COUNT + 2);
+    // Initialize the epoll instance
+	int max_event_count = MAX_PEER_PER_TORRENT_COUNT * MAX_TORRENT_COUNT + 2;
+    int epfd = epoll_create(max_event_count);
     if (epfd == -1)
         errExit("epoll_create");
 
@@ -26,13 +30,13 @@ main()
         errExit("epoll_ctl");
 
     // the event list used with epoll_wait()
-    struct epoll_event evlist[MAX_EVENTS];
+    struct epoll_event evlist[max_event_count];
 
 	TrackerInfo tracker_info = {};
 
     char x = 0;
     while (x != 'q') {
-        int nb_fd_ready = epoll_wait(epfd, evlist, MAX_EVENTS, -1);
+        int nb_fd_ready = epoll_wait(epfd, evlist, max_event_count, -1);
 
         if (nb_fd_ready == -1) {
             if (errno == EINTR) // restart if interrupted by signal
@@ -52,7 +56,6 @@ main()
                 if (accept_client(listen_fd, epfd, &ev) != -1)
 					printf("Client connection.\n");
             } else { // a client fd is ready
-				printf("FD: %d\n", fd);
 				struct sockaddr_in sin;
 				socklen_t len = sizeof(sin);
 				

@@ -1,7 +1,5 @@
 #include "tracker_common.h"
 
-/* TODO: Remove use of epoll. */
-
 /* Always answer by sending an empty peer list. */
 static
 REQUEST_HANDLER(handle_request)
@@ -28,12 +26,10 @@ REQUEST_HANDLER(handle_request)
 
 				char *event_state = strstr(get_request, "event");
 
-				if (event_state && strstr(event_state, "stopped")) {
+				if (event_state && strstr(event_state, "stopped"))
 					peer_stopped = 1;
-				}
-				else {
+				else
 					printf("Client is following a torrent.\n");
-				}
 			}
 		}
 	}
@@ -42,7 +38,6 @@ REQUEST_HANDLER(handle_request)
 		if (peer_stopped)
 			printf("Client unfollowed a torrent.\n");
 		else {
-			/* NOTE: A 'no peer' response takes 105 + server_ip_length chars.*/
 			char http_response_buffer[255];
 			int buffer_size = sizeof(http_response_buffer);
 		
@@ -51,9 +46,10 @@ REQUEST_HANDLER(handle_request)
 			response_write_pos = http_header(response_write_pos, &buffer_size,
 											 "200 Ok", "text/plain");
 
-			// No peers found, ask again in 2 minutes.
 			response_write_pos = http_content(response_write_pos, &buffer_size,
-											  "d8:intervali120e5:peerslee\r\n", -1);
+											  "d8:intervali"			\
+											  TO_STRING(MIN_REQUEST_INTERVAL) \
+											  "e5:peerslee", -1);
 
 			write(fd, http_response_buffer, response_write_pos - http_response_buffer);
 		}
@@ -67,12 +63,15 @@ REQUEST_HANDLER(handle_request)
 int
 main()
 {
-    int listen_fd = inetListen(TO_STRING(TORRENT_PORT), 5, NULL);
+    int listen_fd = inetListen(TO_STRING(TORRENT_PORT),
+							   MAX_PEER_PER_TORRENT_COUNT * MAX_TORRENT_COUNT,
+							   NULL);
     if (listen_fd == -1)
         errExit("inetListen");
-
-    // Initialize the epoll instance 
-    int epfd = epoll_create(MAX_PEER_COUNT + 2);
+	
+    // Initialize the epoll instance	
+	int max_event_count = MAX_PEER_PER_TORRENT_COUNT * MAX_TORRENT_COUNT + 2;
+    int epfd = epoll_create(max_event_count);
     if (epfd == -1)
         errExit("epoll_create");
 
@@ -90,13 +89,13 @@ main()
         errExit("epoll_ctl");
 
     // the event list used with epoll_wait()
-    struct epoll_event evlist[MAX_EVENTS];
+    struct epoll_event evlist[max_event_count];
 
 	TrackerInfo tracker_info = {};
 
     char x = 0;
     while (x != 'q') {
-        int nb_fd_ready = epoll_wait(epfd, evlist, MAX_EVENTS, -1);
+        int nb_fd_ready = epoll_wait(epfd, evlist, max_event_count, -1);
 
         if (nb_fd_ready == -1) {
             if (errno == EINTR) // restart if interrupted by signal

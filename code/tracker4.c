@@ -1,21 +1,26 @@
-#include <netinet/in.h>
-
 #include "tracker_torrent.h"
 #include "tracker_web.h"
 
 int
 main()
 {
-    int torrent_listen_fd = inetListen(TO_STRING(TORRENT_PORT), 5, NULL);
+    int torrent_listen_fd = inetListen(TO_STRING(TORRENT_PORT),
+									   MAX_PEER_PER_TORRENT_COUNT * MAX_TORRENT_COUNT,
+									   NULL);
     if (torrent_listen_fd == -1)
         errExit("inetListen");
 
-	int web_listen_fd = inetListen(TO_STRING(WEB_PORT), 5, NULL);
+	int web_listen_fd = inetListen(TO_STRING(WEB_PORT),
+								   MAX_WEB_CLIENT_COUNT,
+								   NULL);
     if (web_listen_fd == -1)
         errExit("inetListen");
 
-    // Initialize the epoll instance 
-    int epfd = epoll_create(MAX_PEER_COUNT + 3);
+    // Initialize the epoll instance
+	int max_event_count = ((MAX_PEER_PER_TORRENT_COUNT * MAX_TORRENT_COUNT) +
+						   MAX_WEB_CLIENT_COUNT + 2);
+	
+    int epfd = epoll_create(max_event_count);
     if (epfd == -1)
         errExit("epoll_create");
 
@@ -36,13 +41,13 @@ main()
         errExit("epoll_ctl");
 
     // the event list used with epoll_wait()
-    struct epoll_event evlist[MAX_EVENTS];
+    struct epoll_event evlist[max_event_count];
 
 	TrackerInfo tracker_info = {};
 	
     char x = 0;
     while (x != 'q') {
-        int nb_fd_ready = epoll_wait(epfd, evlist, MAX_EVENTS, -1);
+        int nb_fd_ready = epoll_wait(epfd, evlist, max_event_count, -1);
 
         if (nb_fd_ready == -1) {
             if (errno == EINTR) // restart if interrupted by signal
